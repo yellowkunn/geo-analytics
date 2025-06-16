@@ -12,7 +12,9 @@
             width: 100%;
             max-width: 800px;
             margin: 0 auto;
+            min-height: 400px;
             height: 400px;
+            position: relative;
         }
 
         .d-none {
@@ -21,11 +23,16 @@
     </style>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
 </head>
 
 <body>
+
     <div class="container">
+        <a href="{{ url('/') }}" class="btn btn-primary my-3">
+            <i class="bi bi-arrow-left"></i> Kembali
+        </a>
         <h3>Statistik Prasarana Jalan</h3>
 
         <form method="GET" class="mb-4">
@@ -55,78 +62,122 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js">
+    </script>
 
     <script>
-    const chartData = @json($grafik);
+        const chartData = @json($grafik);
 
-    let chartInstance = null;
+        let chartInstance = null;
 
-    function renderChart(chartId, type, labels, data, colors) {
-        const ctx = document.getElementById(chartId).getContext('2d');
-        if (chartInstance) {
-            chartInstance.destroy();
-        }
+        function renderChart(chartId, type, labels, data, colors) {
+            const canvas = document.getElementById(chartId);
+            const ctx = canvas.getContext('2d');
 
-        chartInstance = new Chart(ctx, {
-            type: type,
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: chartId === 'persentaseChart' ? 'Persentase (%)' : 'Panjang Jalan (km)',
-                    data: data,
-                    backgroundColor: colors
-                }]
-            },
-            options: {
-                responsive: true,
-                animation: {
-                    duration: 1000,
-                    easing: 'easeOutQuart'
-                }
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
             }
-        });
-    }
 
-    const chartSelector = document.getElementById('chartSelector');
+            const isPieOrDoughnut = type === 'pie' || type === 'doughnut';
 
-    const chartConfigs = {
-        kondisiChart: {
-            type: 'bar',
-            labels: chartData.kondisi.labels,
-            data: chartData.kondisi.values,
-            colors: ['#28a745', '#ffc107', '#fd7e14', '#dc3545']
-        },
-        perkerasanChart: {
-            type: 'pie',
-            labels: chartData.perkerasan.labels,
-            data: chartData.perkerasan.values,
-            colors: ['#007bff', '#6c757d', '#17a2b8', '#ffc107', '#dc3545']
-        },
-        persentaseChart: {
-            type: 'doughnut',
-            labels: chartData.persentase.labels,
-            data: chartData.persentase.values,
-            colors: ['#28a745', '#ffc107', '#fd7e14', '#dc3545']
+            // Tentukan satuan untuk formatter
+            let formatterSuffix = '';
+            if (chartId === 'persentaseChart') {
+                formatterSuffix = '%';
+            } else if (chartId === 'perkerasanChart') {
+                formatterSuffix = ' km';
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: chartId === 'persentaseChart' ? 'Persentase (%)' : 'Panjang Jalan (km)',
+                        data: data,
+                        backgroundColor: colors
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        // Aktifkan data labels hanya untuk pie/doughnut
+                        datalabels: isPieOrDoughnut ? {
+                            color: 'auto',
+                            font: function(context) {
+                                // Ukuran font disesuaikan dengan ukuran slice
+                                let value = context.dataset.data[context.dataIndex];
+                                let fontSize = value > 20 ? 16 : (value > 5 ? 12 : 10);
+                                return {
+                                    weight: 'bold',
+                                    size: fontSize
+                                };
+                            },
+                            formatter: (value) => {
+                                return value.toFixed(1) + formatterSuffix;
+                            },
+                            clamp: true,
+                            anchor: 'center',
+                            align: 'center',
+                            display: (context) => context.dataset.data[context.dataIndex] >
+                                0 // hanya tampil jika ada datanya
+                        } : false
+                    }
+                },
+                plugins: isPieOrDoughnut ? [ChartDataLabels] : []
+            });
         }
-    };
 
-    // Awal load default
-    renderChart('kondisiChart', chartConfigs.kondisiChart.type, chartConfigs.kondisiChart.labels, chartConfigs.kondisiChart.data, chartConfigs.kondisiChart.colors);
 
-    chartSelector.addEventListener('change', function () {
-        const selected = this.value;
+        const chartSelector = document.getElementById('chartSelector');
 
-        // Hide all canvases
-        document.querySelectorAll('.chart-canvas').forEach(el => el.classList.add('d-none'));
+        const chartConfigs = {
+            kondisiChart: {
+                type: 'bar',
+                labels: chartData.kondisi.labels,
+                data: chartData.kondisi.values,
+                colors: ['#28a745', '#ffc107', '#fd7e14', '#dc3545']
+            },
+            perkerasanChart: {
+                type: 'pie',
+                labels: chartData.perkerasan.labels,
+                data: chartData.perkerasan.values,
+                colors: ['#007bff', '#6c757d', '#17a2b8', '#ffc107', '#dc3545']
+            },
+            persentaseChart: {
+                type: 'doughnut',
+                labels: chartData.persentase.labels,
+                data: chartData.persentase.values,
+                colors: ['#28a745', '#ffc107', '#fd7e14', '#dc3545']
+            }
+        };
 
-        // Show selected canvas
-        document.getElementById(selected).classList.remove('d-none');
+        // Awal load default
+        renderChart('kondisiChart', chartConfigs.kondisiChart.type, chartConfigs.kondisiChart.labels, chartConfigs
+            .kondisiChart.data, chartConfigs.kondisiChart.colors);
 
-        // Render ulang grafik dengan animasi
-        const config = chartConfigs[selected];
-        renderChart(selected, config.type, config.labels, config.data, config.colors);
-    });
-</script>
+        chartSelector.addEventListener('change', function() {
+            const selected = this.value;
+
+            document.querySelectorAll('.chart-canvas').forEach(el => el.classList.add('d-none'));
+            document.getElementById(selected).classList.remove('d-none');
+
+            const config = chartConfigs[selected];
+            renderChart(selected, config.type, config.labels, config.data, config.colors);
+        });
+    </script>
 
 </body>
 
